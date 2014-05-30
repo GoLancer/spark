@@ -19,8 +19,9 @@ class JsonSuite extends QueryTest {
   */
 
   test("Schema inferring") {
-    val logicalPlan = JsonTable.inferSchemaWithJacksonStreaming2(jsonTextData2)
-    println(logicalPlan)
+    val (schema, logicalPlan) = JsonTable.inferSchemaWithJacksonStreaming2(jsonTextData3)
+    // println(logicalPlan)
+    JsonTable.printSchema(schema)
   }
 
   /*

@@ -16,21 +16,6 @@ import com.fasterxml.jackson.core.{JsonToken, JsonFactory, JsonParser}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.databind.ObjectMapper
 
-/*
-/**
- * :: Experimental ::
- * When to resolve the schema of a json table.
- * EAGER means to infer the schema when a json table is registered as a SchemaRDD.
- * LAZY means to infer the schema based on the submitted query (actually, every query has
- * its own view).
- */
-object SchemaResolutionMode extends Enumeration {
-
-  type SchemaResolutionMode = Value
-  val EAGER, LAZY = Value
-}
-*/
-
 sealed trait SchemaResolutionMode
 
 case object EAGER_SCHEMA_RESOLUTION extends SchemaResolutionMode
@@ -83,7 +68,8 @@ object Flatten extends Serializable {
  */
 @Experimental
 object JsonTable extends Serializable {
-  def inferSchemaWithJacksonStreaming2(json: RDD[String], sampleSchema: Option[Double] = None): LogicalPlan = {
+  def inferSchemaWithJacksonStreaming2(
+      json: RDD[String], sampleSchema: Option[Double] = None): (StructType, LogicalPlan) = {
     val schemaData = sampleSchema.map(json.sample(false, _, 1)).getOrElse(json)
     val allKeys =
       schemaData.mapPartitions(iter => {
@@ -100,9 +86,15 @@ object JsonTable extends Serializable {
       val (atomLikes, structLikes) = values.partition(_.size == 1)
 
       // Handle primitive types and arrays with primitive elements
-      val (atomArrays, atoms) = atomLikes.partition(name => arraySet.contains(prefix ++ name))
+      val (possibleAtomArrays, atoms) = atomLikes.partition {
+        name => arraySet.contains(prefix ++ name)
+      }
+      // println("possibleAtomArrays: " + possibleAtomArrays)
+      // println("atoms: " + atoms)
       val atomFields = atoms.map(a => StructField(a.head, StringType, nullable = true))
-      val atomArrayFields: Seq[StructField] = atomArrays.map {
+      val atomArrayFields: Seq[StructField] = possibleAtomArrays.filter {
+        name => !structSet.contains(prefix ++ name)
+      }.map {
         a => StructField(a.head, ArrayType(StringType), nullable = true)
       }
 
@@ -122,10 +114,10 @@ object JsonTable extends Serializable {
     }
 
     val schema = makeStruct(primitiveSet, Nil)
-    println("primitiveSet: " + primitiveSet)
-    println("structSet: " + structSet)
-    println("arraySet: " + arraySet)
-    println(schema)
+    // println("primitiveSet: " + primitiveSet)
+    // println("structSet: " + structSet)
+    // println("arraySet: " + arraySet)
+    // println(schema)
 
 
     // val view = makeStruct(Seq(Seq("text")), Nil)
@@ -134,10 +126,10 @@ object JsonTable extends Serializable {
       map(_.asInstanceOf[Map[String, Any]]).map(json => asRow(json, schema)).foreach(println)
     */
 
-    SparkLogicalPlan(
+    (schema, SparkLogicalPlan(
       ExistingRdd(
         asAttributes(schema),
-        parseJsonWithJackson(json).map(asRow(_, schema))))
+        parseJsonWithJackson(json).map(asRow(_, schema)))))
 
   }
 
@@ -148,8 +140,8 @@ object JsonTable extends Serializable {
         val jsonFactory = new JsonFactory()
         iter.map(record => getAllKeys(jsonFactory, record))
       }).reduce(_ ++ _)
-    println(allKeys)
-    println(allKeys.toSeq.sorted.map(key => key.substring(1, key.length - 1).split("`.`").toSeq))
+    // println(allKeys)
+    // println(allKeys.toSeq.sorted.map(key => key.substring(1, key.length - 1).split("`.`").toSeq))
     val schema = makeStruct(allKeys.toSeq.map(key => key.substring(1, key.length - 1).split("`.`").toSeq))
 
     /*
@@ -171,8 +163,8 @@ object JsonTable extends Serializable {
       parseJsonWithJackson(schemaData)
         .map(getAllKeys)
         .reduce(_ ++ _)
-    println(allKeys)
-    println(allKeys.toSeq.sorted.map(key => key.split("\\.").toSeq))
+    // println(allKeys)
+    // println(allKeys.toSeq.sorted.map(key => key.split("\\.").toSeq))
     val schema = makeStruct(allKeys.toSeq.map(_.split("\\.").toSeq))
 
     SparkLogicalPlan(
@@ -187,8 +179,8 @@ object JsonTable extends Serializable {
       parseJson(schemaData)
         .map(getAllKeys)
         .reduce(_ ++ _)
-    println(allKeys)
-    println(allKeys.toSeq.sorted.map(key => key.split("\\.").toSeq))
+    // println(allKeys)
+    // println(allKeys.toSeq.sorted.map(key => key.split("\\.").toSeq))
     val schema = makeStruct(allKeys.toSeq.map(_.split("\\.").toSeq))
 
     SparkLogicalPlan(
@@ -274,7 +266,11 @@ object JsonTable extends Serializable {
             }
           }
           arraySet = arraySet + currentName
-          if (!isArrayOfStructs) nameSet = nameSet + currentName
+          if (isArrayOfStructs) {
+            structSet = structSet + currentName
+          } else {
+            nameSet = nameSet + currentName
+          }
         } else {
           // The value of currentName is a string, a number, a boolean, or a null.
           nameSet = nameSet + currentName
@@ -325,6 +321,26 @@ object JsonTable extends Serializable {
               e => asRow(e.asInstanceOf[Map[String, Any]], structType))).orNull)
     }
     row
+  }
+
+  def printSchema(schema: StructType): Unit = {
+    println("root")
+    printSchema(schema, " |")
+  }
+
+  def printSchema(schema: StructType, intent: String): Unit = {
+    schema.fields.foreach {
+      case StructField(name, StringType, _) =>
+        println(s"$intent-- $name: String")
+      case StructField(name, fields: StructType, _) =>
+        println(s"$intent-- $name: Struct")
+        printSchema(fields, s"$intent    |")
+      case StructField(name, ArrayType(StringType), _) =>
+        println(s"$intent-- $name: Array[String]")
+      case StructField(name, ArrayType(fields: StructType), _) =>
+        println(s"$intent-- $name: Array[Struct]")
+        printSchema(fields, s"$intent    |")
+    }
   }
 
   protected[json] def makeStruct(values: Seq[Seq[String]]): StructType = {
