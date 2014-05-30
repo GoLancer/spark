@@ -128,7 +128,7 @@ object JsonTable extends Serializable {
     println(schema)
 
 
-    val view = makeStruct(Seq(Seq("text")), Nil)
+    // val view = makeStruct(Seq(Seq("text")), Nil)
     /*
     schemaData.collect().toSeq.map(JSON.parseFull(_).getOrElse(Map.empty[String, Any])).
       map(_.asInstanceOf[Map[String, Any]]).map(json => asRow(json, schema)).foreach(println)
@@ -136,8 +136,8 @@ object JsonTable extends Serializable {
 
     SparkLogicalPlan(
       ExistingRdd(
-        asAttributes(view),
-        parseJsonWithJackson(json).map(asRow(_, view))))
+        asAttributes(schema),
+        parseJsonWithJackson(json).map(asRow(_, schema))))
 
   }
 
