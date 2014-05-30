@@ -9,13 +9,21 @@ class JsonSuite extends QueryTest {
   import TestJsonData._
   TestJsonData
 
+  /*
   test("Getting all keys of a JSON record") {
     val jsonFactory: JsonFactory = new JsonFactory()
     val allKeys = getAllKeys(jsonFactory, jsonRecord1)
     val schema = makeStruct(allKeys.toSeq.map(key => key.substring(1, key.length - 1).split("`.`").toSeq))
     println(schema)
   }
+  */
 
+  test("Schema inferring") {
+    val logicalPlan = JsonTable.inferSchemaWithJacksonStreaming2(jsonTextData2)
+    println(logicalPlan)
+  }
+
+  /*
   test("Schema inferring") {
     val logicalPlan = JsonTable.inferSchema(jsonTextData)
     println(logicalPlan)
@@ -36,5 +44,6 @@ class JsonSuite extends QueryTest {
     simplePredicateInNestedField.collect().foreach(println)
 
   }
+  */
 
 }

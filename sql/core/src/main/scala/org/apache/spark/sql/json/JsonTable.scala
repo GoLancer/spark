@@ -83,6 +83,64 @@ object Flatten extends Serializable {
  */
 @Experimental
 object JsonTable extends Serializable {
+  def inferSchemaWithJacksonStreaming2(json: RDD[String], sampleSchema: Option[Double] = None): LogicalPlan = {
+    val schemaData = sampleSchema.map(json.sample(false, _, 1)).getOrElse(json)
+    val allKeys =
+      schemaData.mapPartitions(iter => {
+        val jsonFactory = new JsonFactory()
+        iter.map(record => getAllKeysWithType(jsonFactory, record))
+      }).reduce((x, y) => (x._1 ++ y._1, x._2 ++ y._2, x._3 ++ y._3))
+    val (pSet, sSet, aSet) = allKeys
+    // TODO: Resolve conflict
+    val primitiveSet = pSet.toSeq.map(key => key.substring(1, key.length - 1).split("`.`").toSeq)
+    val structSet = sSet.map(key => key.substring(1, key.length - 1).split("`.`").toSeq)
+    val arraySet = aSet.map(key => key.substring(1, key.length - 1).split("`.`").toSeq)
+
+    def makeStruct(values: Seq[Seq[String]], prefix: Seq[String]): StructType = {
+      val (atomLikes, structLikes) = values.partition(_.size == 1)
+
+      // Handle primitive types and arrays with primitive elements
+      val (atomArrays, atoms) = atomLikes.partition(name => arraySet.contains(prefix ++ name))
+      val atomFields = atoms.map(a => StructField(a.head, StringType, nullable = true))
+      val atomArrayFields: Seq[StructField] = atomArrays.map {
+        a => StructField(a.head, ArrayType(StringType), nullable = true)
+      }
+
+      val structFields: Seq[StructField] = structLikes.groupBy(_(0)).map {
+        case (name, fields) => {
+          val nestedFields = fields.map(_.tail)
+          val structType = makeStruct(nestedFields, prefix :+ name)
+          if (arraySet.contains(prefix :+ name)) {
+            StructField(name, ArrayType(structType), nullable = true)
+          } else {
+            StructField(name, structType, nullable = true)
+          }
+        }
+      }.toSeq
+
+      StructType(atomFields ++ atomArrayFields ++ structFields)
+    }
+
+    val schema = makeStruct(primitiveSet, Nil)
+    println("primitiveSet: " + primitiveSet)
+    println("structSet: " + structSet)
+    println("arraySet: " + arraySet)
+    println(schema)
+
+
+    val view = makeStruct(Seq(Seq("text")), Nil)
+    /*
+    schemaData.collect().toSeq.map(JSON.parseFull(_).getOrElse(Map.empty[String, Any])).
+      map(_.asInstanceOf[Map[String, Any]]).map(json => asRow(json, schema)).foreach(println)
+    */
+
+    SparkLogicalPlan(
+      ExistingRdd(
+        asAttributes(view),
+        parseJsonWithJackson(json).map(asRow(_, view))))
+
+  }
+
   def inferSchemaWithJacksonStreaming(json: RDD[String], sampleSchema: Option[Double] = None): LogicalPlan = {
     val schemaData = sampleSchema.map(json.sample(false, _, 1)).getOrElse(json)
     val allKeys =
@@ -173,6 +231,60 @@ object JsonTable extends Serializable {
     nameSet
   }
 
+  protected[json] def getAllKeysWithType(
+      jsonFactory: JsonFactory, record: String): (Set[String], Set[String], Set[String]) = {
+    val jsonParser: JsonParser = jsonFactory.createParser(record)
+    val (pSet, sSet, aSet) = getAllKeysWithType(jsonParser)
+    jsonParser.close()
+
+    (pSet, sSet, aSet)
+  }
+
+  protected def getAllKeysWithType(
+      jsonParser: JsonParser): (Set[String], Set[String], Set[String]) = {
+    var nameSet: Set[String] = Set[String]()
+    var structSet: Set[String] = Set[String]()
+    var arraySet: Set[String] = Set[String]()
+    var currentName: String = null
+
+    while (jsonParser.nextToken() != JsonToken.END_OBJECT) {
+      if (jsonParser.getCurrentToken() == JsonToken.FIELD_NAME) {
+        // The field name is quoted with backticks to because the field name can have
+        // dot(.).
+        currentName = s"`${jsonParser.getCurrentName}`"
+        val nextToken = jsonParser.nextToken()
+
+        if (nextToken == JsonToken.START_OBJECT) {
+          // The value of currentName is an object.
+          val (pSet, sSet, aSet) = getAllKeysWithType(jsonParser)
+          nameSet = nameSet ++ pSet.map(k => s"$currentName.$k")
+          structSet = structSet ++ sSet.map(k => s"$currentName.$k")
+          arraySet = arraySet ++ aSet.map(k => s"$currentName.$k")
+          structSet = structSet + currentName
+        } else if (nextToken == JsonToken.START_ARRAY) {
+          // The value of currentName is an array.
+          var isArrayOfStructs = false
+          while (jsonParser.nextToken() != JsonToken.END_ARRAY) {
+            if (jsonParser.getCurrentToken == JsonToken.START_OBJECT) {
+              isArrayOfStructs = true
+              val (pSet, sSet, aSet) = getAllKeysWithType(jsonParser)
+              nameSet = nameSet ++ pSet.map(k => s"$currentName.$k")
+              structSet = structSet ++ sSet.map(k => s"$currentName.$k")
+              arraySet = arraySet ++ aSet.map(k => s"$currentName.$k")
+            }
+          }
+          arraySet = arraySet + currentName
+          if (!isArrayOfStructs) nameSet = nameSet + currentName
+        } else {
+          // The value of currentName is a string, a number, a boolean, or a null.
+          nameSet = nameSet + currentName
+        }
+      }
+    }
+
+    (nameSet, structSet, arraySet)
+  }
+
   protected def getAllKeys(m: Map[String, Any]): Set[String] = {
     m.flatMap {
       case (key, nestedValues: Map[String, Any]) =>
@@ -203,6 +315,14 @@ object JsonTable extends Serializable {
       case (StructField(name, fields: StructType, _), i) =>
         row.update(i,
           json.get(name).map(v => asRow(v.asInstanceOf[Map[String, Any]], fields)).orNull)
+      case (StructField(name, ArrayType(StringType), _), i) =>
+        row.update(i,
+          json.get(name).map(v => v.asInstanceOf[Seq[String]]).orNull)
+      case (StructField(name, ArrayType(structType: StructType), _), i) =>
+        row.update(i,
+          json.get(name).map(
+            v => v.asInstanceOf[Seq[Any]].map(
+              e => asRow(e.asInstanceOf[Map[String, Any]], structType))).orNull)
     }
     row
   }
