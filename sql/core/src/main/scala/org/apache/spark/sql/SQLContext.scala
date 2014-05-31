@@ -104,18 +104,18 @@ class SQLContext(@transient val sparkContext: SparkContext)
    */
   def jsonFile(
       path: String,
-      mode: SchemaResolutionMode = EAGER_SCHEMA_RESOLUTION): SchemaRDD = {
+      mode: SchemaResolutionMode = EAGER_SCHEMA_RESOLUTION): (StructType, SchemaRDD) = {
     val jsonFile = sparkContext.textFile(path);
     mode match {
       case EAGER_SCHEMA_RESOLUTION =>
         logger.info(s"Eagerly resolve the schema of JSON file $path without sampling.")
-        val logicalPlan = JsonTable.inferSchemaWithJackson(jsonFile)
-        logicalPlanToSparkQuery(logicalPlan)
+        val (schema, logicalPlan) = JsonTable.inferSchemaWithJacksonStreaming2(jsonFile)
+        (schema, logicalPlanToSparkQuery(logicalPlan))
       case EAGER_SCHEMA_RESOLUTION_WITH_SAMPLING(fraction) =>
         logger.info(s"Eagerly resolve the schema of JSON file $path with sampling " +
           s"(sampling fraction: $fraction).")
-        val logicalPlan = JsonTable.inferSchemaWithJackson(jsonFile, Some(fraction))
-        logicalPlanToSparkQuery(logicalPlan)
+        val (schema, logicalPlan) = JsonTable.inferSchemaWithJacksonStreaming2(jsonFile, Some(fraction))
+        (schema, logicalPlanToSparkQuery(logicalPlan))
       case LAZY_SCHEMA_RESOLUTION =>
         throw new UnsupportedOperationException("Lazy schema resolution has not been implemented.")
     }

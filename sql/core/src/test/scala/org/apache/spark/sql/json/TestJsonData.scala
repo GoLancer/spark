@@ -34,5 +34,6 @@ object TestJsonData {
   val jsonTextData3 =
     TestSQLContext.sparkContext.parallelize(
       """{"a1":{"b1":[1, "str", true], "b2":[{"c1":3.0}, {"c1":4.0}, {"c2": 5.0}]}}"""" ::
-      """{"a1":{"b1":[], "b2":[]}}"""" :: Nil)
+      """{"a1":{"b1":[], "b2":[]}}"""" ::
+      """{"a1":{"b1":[], "b2":null}}"""" :: Nil)
 }

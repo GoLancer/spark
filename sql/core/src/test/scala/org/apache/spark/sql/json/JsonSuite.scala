@@ -22,6 +22,9 @@ class JsonSuite extends QueryTest {
     val (schema, logicalPlan) = JsonTable.inferSchemaWithJacksonStreaming2(jsonTextData3)
     // println(logicalPlan)
     JsonTable.printSchema(schema)
+    logicalPlan.registerAsTable("simpleJsonTable")
+    val selectAll = sql("SELECT * FROM simpleJsonTable")
+    selectAll.collect().foreach(println)
   }
 
   /*

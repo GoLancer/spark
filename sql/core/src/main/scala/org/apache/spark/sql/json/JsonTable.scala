@@ -305,20 +305,27 @@ object JsonTable extends Serializable {
 
   protected def asRow(json: Map[String,Any], schema: StructType): Row = {
     val row = new GenericMutableRow(schema.fields.length)
-    schema.fields.zipWithIndex.foreach {
-      case (StructField(name, StringType, _), i) =>
-        row.update(i, json.get(name).flatMap(v => Option(v)).map(_.toString).orNull)
-      case (StructField(name, fields: StructType, _), i) =>
-        row.update(i,
-          json.get(name).map(v => asRow(v.asInstanceOf[Map[String, Any]], fields)).orNull)
-      case (StructField(name, ArrayType(StringType), _), i) =>
-        row.update(i,
-          json.get(name).map(v => v.asInstanceOf[Seq[String]]).orNull)
-      case (StructField(name, ArrayType(structType: StructType), _), i) =>
-        row.update(i,
-          json.get(name).map(
-            v => v.asInstanceOf[Seq[Any]].map(
-              e => asRow(e.asInstanceOf[Map[String, Any]], structType))).orNull)
+    try {
+      schema.fields.zipWithIndex.foreach {
+        case (StructField(name, StringType, _), i) =>
+          row.update(i, json.get(name).flatMap(v => Option(v)).map(_.toString).orNull)
+        case (StructField(name, fields: StructType, _), i) =>
+          row.update(i,
+            json.get(name).flatMap(v => Option(v)).map(v => asRow(v.asInstanceOf[Map[String, Any]], fields)).orNull)
+        case (StructField(name, ArrayType(StringType), _), i) =>
+          row.update(i,
+            json.get(name).flatMap(v => Option(v)).map(v => v.asInstanceOf[Seq[String]]).orNull)
+        case (StructField(name, ArrayType(structType: StructType), _), i) =>
+          row.update(i,
+            json.get(name).flatMap(v => Option(v)).map(
+              v => v.asInstanceOf[Seq[Any]].map(
+                e => asRow(e.asInstanceOf[Map[String, Any]], structType))).orNull)
+      }
+    } catch {
+      case e: java.lang.NullPointerException => {
+        val error = json.toString()
+        throw new NullPointerException(error)
+      }
     }
     row
   }
