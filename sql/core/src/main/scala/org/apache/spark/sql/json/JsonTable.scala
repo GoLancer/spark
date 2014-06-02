@@ -13,8 +13,9 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.execution.SparkLogicalPlan
 import org.apache.spark.sql.SchemaRDD
 import com.fasterxml.jackson.core.{JsonToken, JsonFactory, JsonParser}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.databind.ObjectMapper
+
+import scala.collection.JavaConversions._
 
 sealed trait SchemaResolutionMode
 
@@ -290,11 +291,18 @@ object JsonTable extends Serializable {
   }
 
   protected def parseJsonWithJackson(json: RDD[String]): RDD[Map[String, Any]] = {
+    def scalafy(obj: Any): Any = obj match {
+      case map: java.util.Map[String, Object] =>
+        map.toMap.mapValues(scalafy)
+      case list: java.util.List[Object] =>
+        list.toList.map(scalafy)
+      case atom => atom
+    }
+
     json.mapPartitions(iter => {
       val mapper = new ObjectMapper()
-      mapper.registerModule(DefaultScalaModule)
-      iter.map(record => mapper.readValue(record, classOf[Map[String, Any]]))
-    })
+      iter.map(record => mapper.readValue(record, classOf[Object]))
+    }).map(scalafy).map(_.asInstanceOf[Map[String, Any]])
   }
 
   def parseJson(json: RDD[String]): RDD[Map[String, Any]] = {
