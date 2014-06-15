@@ -97,8 +97,6 @@ class SQLContext(@transient val sparkContext: SparkContext)
 
   /**
    * Loads a JSON file (one object per line), returning the result as a [[SchemaRDD]].
-   * If a sampled `json` needs to be used, `samplingRatio` can be used to specify
-   * the sampling ratio.
    *
    * @group userf
    */
@@ -114,8 +112,7 @@ class SQLContext(@transient val sparkContext: SparkContext)
 
   /**
    * Loads a RDD[String] storing JSON objects (one object per record), returning the result as a
-   * [[SchemaRDD]]. If a sampled `json` needs to be used, `samplingRatio` can be used to specify
-   * the sampling ratio.
+   * [[SchemaRDD]].
    *
    * @group userf
    */
@@ -125,7 +122,7 @@ class SQLContext(@transient val sparkContext: SparkContext)
    * :: Experimental ::
    */
   def jsonRDD(json: RDD[String], samplingRatio: Double): SchemaRDD =
-    JsonRDD(this, json, samplingRatio)
+    new SchemaRDD(this, JsonRDD.inferSchema(json, samplingRatio))
 
   /**
    * :: Experimental ::
