@@ -221,7 +221,7 @@ case class BroadcastHashJoin(
 
   override def otherCopyArgs = sqlContext :: Nil
 
-  override def outputPartitioning: Partitioning = left.outputPartitioning
+  override def outputPartitioning: Partitioning = streamedPlan.outputPartitioning
 
   override def requiredChildDistribution =
     UnspecifiedDistribution :: UnspecifiedDistribution :: Nil

@@ -163,7 +163,7 @@ case class HashPartitioning(expressions: Seq[Expression], numPartitions: Int)
 }
 
 /**
- * Represents a partitioning where rows are split across partitions based on some total ordering of
+ * Represents a partitioning where rows are  split across partitions based on some total ordering of
  * the expressions specified in `ordering`.  When data is partitioned in this manner the following
  * two conditions are guaranteed to hold:
  *  - All row where the expressions in `ordering` evaluate to the same values will be in the same
@@ -203,4 +203,20 @@ case class RangePartitioning(ordering: Seq[SortOrder], numPartitions: Int)
 
   override def eval(input: Row): EvaluatedType =
     throw new TreeNodeException(this, s"No function to evaluate expression. type: ${this.nodeName}")
+}
+
+/**
+ * Represents a list of [[Partitioning]]s that can be treated equivalently.
+ */
+protected[sql] case class EquivalentPartitioning(
+    partitionings: Seq[Partitioning])
+  extends Partitioning {
+
+  val numPartitions = partitionings.head.numPartitions
+
+  override def satisfies(required: Distribution) =
+    partitionings.exists(partitioning => partitioning.satisfies(required))
+
+  override def compatibleWith(other: Partitioning) =
+    partitionings.exists(partitioning => partitioning.compatibleWith(other))
 }
