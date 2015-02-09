@@ -1622,6 +1622,36 @@ class SQLContext(object):
             df = self._ssql_ctx.jsonRDD(jrdd.rdd(), scala_datatype)
         return DataFrame(df, self)
 
+    def load(self, path=None, dataSourceName=None, schema=None, **options):
+        if path is not None:
+            options["path"] = path
+        if dataSourceName is None:
+            dataSourceName = self.sql_ctx._ssql_ctx.conf.defaultDataSourceName()
+        joptions = MapConverter().convert(options,
+                                          self._sc._gateway._gateway_client)
+        if schema is None:
+            df = self._ssql_ctx.load(dataSourceName, joptions)
+        else:
+            scala_datatype = self._ssql_ctx.parseDataType(schema.json())
+            df = self._ssql_ctx.load(dataSourceName, scala_datatype, joptions)
+        return DataFrame(df, self)
+
+    def createExternalTable(self, tableName, path=None, dataSourceName=None,
+                            schema=None, **options):
+        if path is not None:
+            options["path"] = path
+        if dataSourceName is None:
+            dataSourceName = self.sql_ctx._ssql_ctx.conf.defaultDataSourceName()
+        joptions = MapConverter().convert(options,
+                                          self._sc._gateway._gateway_client)
+        if schema is None:
+            df = self._ssql_ctx.createExternalTable(tableName, dataSourceName, joptions)
+        else:
+            scala_datatype = self._ssql_ctx.parseDataType(schema.json())
+            df = self._ssql_ctx.createExternalTable(tableName, dataSourceName, scala_datatype,
+                                                    joptions)
+        return DataFrame(df, self)
+
     def sql(self, sqlQuery):
         """Return a L{DataFrame} representing the result of the given query.
 
@@ -1889,9 +1919,53 @@ class DataFrame(object):
         """
         self._jdf.insertInto(tableName, overwrite)
 
-    def saveAsTable(self, tableName):
-        """Creates a new table with the contents of this DataFrame."""
-        self._jdf.saveAsTable(tableName)
+    def saveAsTable(self, tableName, dataSourceName=None, appendIfExists=False, **options):
+        """Creates a new table with the contents of this DataFrame based on the given data source
+        and a set of options. If a data source is not provided, the default data source configured
+        by spark.sql.sources.default will be used. If appendIfExists is False, this operation
+        will fail when the table already exists. If appendIfExists is True, the contents of
+        this DataFrame will be appended to the existing table. The default value of appendIfExists
+        is False.
+        """
+        if dataSourceName is None:
+            dataSourceName = self.sql_ctx._ssql_ctx.conf.defaultDataSourceName()
+        if options:
+            joptions = MapConverter().convert(options,
+                                              self.sql_ctx._sc._gateway._gateway_client)
+            self._jdf.saveAsTable(tableName, dataSourceName, appendIfExists, joptions)
+        else:
+            self._jdf.saveAsTable(tableName, dataSourceName, appendIfExists)
+
+    def save(self, path=None, mode="e", dataSourceName=None, **options):
+        """Saves the contents of the DataFrame to a data source based on the given data source,
+        the given save mode, and a set of options. If a data source is not provided,
+        the default data source configured by spark.sql.sources.default will be used.
+        mode is a string indicating how the contents of the DataFrame will be saved when
+        already exists. When mode is "a", the save mode is Append, which means that when
+        saving a DataFrame to a data source, if data already exists, contents of the DataFrame are
+        expected to be appended to existing data. When mode is "o", the save mode is Overwrite,
+        which means that when saving a DataFrame to a data source, if data already exists,
+        existing data is expected to be overwritten by the contents of the DataFrame.
+        When mode is "e", the save mode is ErrorIfExists, which means that when
+        saving a DataFrame to a data source, if data already exists, an exception is
+        expected to be thrown. The default save mode is ErrorIfExists (mode is "e").
+        """
+        if path is not None:
+            options["path"] = path
+        if dataSourceName is None:
+            dataSourceName = self.sql_ctx._ssql_ctx.conf.defaultDataSourceName()
+        jmode = self._sc._jvm.org.apache.spark.sql.sources.SaveMode.ErrorIfExists
+        if mode == "a":
+            jmode = self._sc._jvm.org.apache.spark.sql.sources.SaveMode.Append
+        elif mode == "o":
+            jmode = self._sc._jvm.org.apache.spark.sql.sources.SaveMode.Overwrite
+        elif mode == "e":
+            pass
+        else:
+            raise ValueError("Only 'a', 'o', and 'e' are acceptable save mode.")
+        joptions = MapConverter().convert(options,
+                                          self.sql_ctx._sc._gateway._gateway_client)
+        self._jdf.save(dataSourceName, jmode, joptions)
 
     def schema(self):
         """Returns the schema of this DataFrame (represented by
