@@ -44,6 +44,8 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
   private val bypassMergeThreshold =
     child.sqlContext.sparkContext.conf.getInt("spark.shuffle.sort.bypassMergeThreshold", 200)
 
+  private val useSqlSerializer2 = child.sqlContext.conf.useSqlSerializer2
+
   override def execute() = attachTree(this , "execute") {
     newPartitioning match {
       case HashPartitioning(expressions, numPartitions) =>
@@ -69,7 +71,13 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         }
         val part = new HashPartitioner(numPartitions)
         val shuffled = new ShuffledRDD[Row, Row, Row](rdd, part)
-        shuffled.setSerializer(new SparkSqlSerializer(new SparkConf(false)))
+        val serializer = if (useSqlSerializer2) {
+          new SparkSqlSerializer2
+        } else {
+          new SparkSqlSerializer(new SparkConf(false))
+        }
+
+        shuffled.setSerializer(serializer)
         shuffled.map(_._2)
 
       case RangePartitioning(sortingExpressions, numPartitions) =>
