@@ -17,8 +17,29 @@
 
 package org.apache.spark.serializer
 
-import org.scalatest.FunSuite
+import org.apache.spark.sql.{Row, QueryTest}
 
-class SparkSqlSerializer2Suite extends FunSuite {
+import org.apache.spark.sql.test.TestSQLContext._
+import org.apache.spark.sql.test.TestSQLContext.implicits._
 
+class SparkSqlSerializer2Suite extends QueryTest {
+
+  test("simple shuffle") {
+    val df =
+      (1 to 10)
+        .map(i => (i, i.toDouble, i.toLong, i.toString))
+        .toDF("intCol", "doubleCol", "longCol", "stringCol")
+
+    sql("SET spark.sql.useSerializer2=true")
+
+    checkAnswer(
+      df.orderBy("intCol"),
+      df.collect().toSeq
+    )
+
+    checkAnswer(
+      df.groupBy("stringCol").sum(),
+      (1 to 10).map(i => Row(i.toString, i, i.toDouble, i.toLong))
+    )
+  }
 }
