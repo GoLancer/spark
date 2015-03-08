@@ -72,7 +72,9 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         val part = new HashPartitioner(numPartitions)
         val shuffled = new ShuffledRDD[Row, Row, Row](rdd, part)
         val serializer = if (useSqlSerializer2) {
-          new SparkSqlSerializer2
+          new SparkSqlSerializer2(
+            expressions.map(_.dataType).toArray,
+            child.output.map(_.dataType).toArray)
         } else {
           new SparkSqlSerializer(new SparkConf(false))
         }
@@ -93,9 +95,15 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         // TODO: RangePartitioner should take an Ordering.
         implicit val ordering = new RowOrdering(sortingExpressions, child.output)
 
+        val serializer = if (useSqlSerializer2) {
+          new SparkSqlSerializer2(child.output.map(_.dataType).toArray, null)
+        } else {
+          new SparkSqlSerializer(new SparkConf(false))
+        }
+
         val part = new RangePartitioner(numPartitions, rdd, ascending = true)
         val shuffled = new ShuffledRDD[Row, Null, Null](rdd, part)
-        shuffled.setSerializer(new SparkSqlSerializer(new SparkConf(false)))
+        shuffled.setSerializer(serializer)
 
         shuffled.map(_._1)
 
