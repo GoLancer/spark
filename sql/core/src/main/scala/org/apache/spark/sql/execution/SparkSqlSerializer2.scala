@@ -70,11 +70,11 @@ class SparkSqlSerializer2SerializationStream(
   }
 
   def flush(): Unit = {
-    out.flush()
+    rowOut.flush()
   }
 
   def close(): Unit = {
-    out.close()
+    rowOut.close()
   }
 }
 
@@ -120,7 +120,7 @@ class SparkSqlSerializer2DeserializationStream(
   }
 
   def close(): Unit = {
-    in.close()
+    rowIn.close()
   }
 }
 
