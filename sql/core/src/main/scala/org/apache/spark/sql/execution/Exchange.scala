@@ -54,6 +54,9 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
       case "2" =>
         new SparkSqlSerializer2V2(keySchema, valueSchema)
 
+      case "3" =>
+        new SparkSqlSerializer2V3(keySchema, valueSchema)
+
       case _ =>
         new SparkSqlSerializer2(keySchema, valueSchema)
     }
