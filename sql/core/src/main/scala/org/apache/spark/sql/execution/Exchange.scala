@@ -51,7 +51,8 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
   def serializer2(keySchema: Array[DataType], valueSchema: Array[DataType]): Serializer = {
     logInfo(
       s"SQLSerializer2 is enabled with version ${child.sqlContext.conf.serializer2Version}." +
-      s"keySchema is ${keySchema.toSeq} and valueSchema is ${valueSchema.toSeq}")
+      s"keySchema is ${keySchema.toSeq} and valueSchema is " +
+      s"${if (valueSchema == null) null else valueSchema.toSeq}")
     child.sqlContext.conf.serializer2Version match {
       case "2" =>
         new SparkSqlSerializer2V2(keySchema, valueSchema)
