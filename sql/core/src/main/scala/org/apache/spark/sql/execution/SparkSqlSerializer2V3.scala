@@ -122,7 +122,7 @@ class SparkSqlSerializer2V3DeserializationStream(
           val length = rowIn.readInt()
           if (length > 12) sys.error(s"The string's length is larger than 12.")
           val bytes = new Array[Byte](length)
-          rowIn.read(bytes)
+          rowIn.readFully(bytes)
           row.setString(i, new String(bytes, "utf-8"))
         case IntegerType =>
           row.setInt(i, rowIn.readInt())
