@@ -119,10 +119,10 @@ class Q31SerializationStream(out: OutputStream) extends BDBSerializationStream(o
     tmp = value.getString(0)
     rowOut.writeInt(tmp.length)
     rowOut.write(tmp.getBytes("utf-8"))
-    tmp = value.getString(1)
+    rowOut.writeDouble(value.getDouble(1))
+    tmp = value.getString(2)
     rowOut.writeInt(tmp.length)
     rowOut.write(tmp.getBytes("utf-8"))
-    rowOut.writeDouble(value.getDouble(2))
 
     this
   }
@@ -233,11 +233,11 @@ class Q31DeserializationStream(
     bytes = new Array[Byte](length)
     rowIn.readFully(bytes)
     value.setString(0, new String(bytes, "utf-8"))
+    value.setDouble(1, rowIn.readDouble())
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
     rowIn.readFully(bytes)
-    value.setString(1, new String(bytes, "utf-8"))
-    value.setDouble(2, rowIn.readDouble())
+    value.setString(2, new String(bytes, "utf-8"))
 
     (key, value).asInstanceOf[T]
   }
@@ -316,21 +316,11 @@ object SparkSqlSerializer2V2 {
       s: OutputStream,
       keySchema: Array[DataType],
       valueSchema: Array[DataType]): SerializationStream = {
-    val q2Key = Seq(StringType)
-    val q2Value = Seq(StringType, DoubleType)
-    val q3Key1 = Seq(StringType)
-    val q3Value1 = Seq(StringType, StringType, DoubleType)
-    val q3Key2 = Seq(StringType)
-    val q3Value2 = Seq(StringType, IntegerType)
-    val q3Key3 = Seq(StringType)
-    val q3Value3 = Seq(StringType, LongType, LongType, DoubleType)
-    val q3Key4 = Seq(StringType, DoubleType, DoubleType)
-    val q3Value4 = null
 
     (keySchema.toSeq, valueSchema.toSeq) match {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2SerializationStream(s)
-      case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
+      case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31SerializationStream(s)
       case (Seq(StringType), Seq(StringType, IntegerType)) =>
         new Q32SerializationStream(s)
@@ -347,21 +337,11 @@ object SparkSqlSerializer2V2 {
       s: InputStream,
       keySchema: Array[DataType],
       valueSchema: Array[DataType]): DeserializationStream = {
-    val q2Key = Array(StringType)
-    val q2Value = Array(StringType, DoubleType)
-    val q3Key1 = Array(StringType)
-    val q3Value1 = Array(StringType, StringType, DoubleType)
-    val q3Key2 = Array(StringType)
-    val q3Value2 = Array(StringType, IntegerType)
-    val q3Key3 = Array(StringType)
-    val q3Value3 = Array(StringType, LongType, LongType, DoubleType)
-    val q3Key4 = Array(StringType, DoubleType, DoubleType)
-    val q3Value4 = null
 
     (keySchema.toSeq, valueSchema.toSeq) match {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2DeserializationStream(s, keySchema, valueSchema)
-      case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
+      case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31DeserializationStream(s, keySchema, valueSchema)
       case (Seq(StringType), Seq(StringType, IntegerType)) =>
         new Q32DeserializationStream(s, keySchema, valueSchema)
