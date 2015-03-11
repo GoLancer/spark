@@ -99,7 +99,7 @@ class SparkSqlSerializer2V3DeserializationStream(
     (key, value).asInstanceOf[T]
   }
 
-  def readRow(row: SpecificMutableRow, schema: Seq[DataType]): Unit = {
+  def readRow(row: SpecificMutableRow, schema: Array[DataType]): Unit = {
     var i = 0
     while (i < schema.length) {
       schema(i) match {

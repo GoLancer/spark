@@ -59,7 +59,7 @@ class SparkSqlSerializer2Suite extends QueryTest {
     df.registerTempTable("serializer2v2")
 
     sql("SET spark.sql.useSerializer2=true")
-    sql("SET spark.sql.useSerializer2.version=2")
+    sql("SET spark.sql.useSerializer2.version=1")
 
     sql("SELECT stringCol1, sum(doubleCol) FROM serializer2v2 GROUP BY stringCol1").explain()
 
@@ -82,13 +82,13 @@ class SparkSqlSerializer2Suite extends QueryTest {
           |FROM serializer2v2 x JOIN serializer2v2 y ON (x.stringCol1 = y.stringCol1)
           |GROUP BY x.stringCol2
         """.stripMargin),
-      (1 to 10).map(i => Row(i.toString, i, i.toDouble, i.toLong))
+      (1 to 10).map(i => Row(i.toString, i.toDouble, i.toDouble))
     )
 
-    df.orderBy("stringCol", "doubleCol", "doubleCol").explain()
+    df.orderBy("stringCol1", "doubleCol", "doubleCol").explain()
 
     checkAnswer(
-      df.orderBy("stringCol", "doubleCol", "doubleCol"),
+      df.orderBy("stringCol1", "doubleCol", "doubleCol"),
       df.collect().toSeq
     )
 
@@ -96,4 +96,5 @@ class SparkSqlSerializer2Suite extends QueryTest {
     sql("SET spark.sql.useSerializer2.version=1")
   }
   */
+
 }

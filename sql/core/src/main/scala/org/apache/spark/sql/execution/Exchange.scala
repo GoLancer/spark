@@ -49,7 +49,9 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
   private val useSqlSerializer2 = child.sqlContext.conf.useSqlSerializer2
 
   def serializer2(keySchema: Array[DataType], valueSchema: Array[DataType]): Serializer = {
-    logInfo(s"SQLSerializer2 is enabled with version ${child.sqlContext.conf.serializer2Version}.")
+    logInfo(
+      s"SQLSerializer2 is enabled with version ${child.sqlContext.conf.serializer2Version}." +
+      s"keySchema is ${keySchema.toSeq} and valueSchema is ${valueSchema.toSeq}")
     child.sqlContext.conf.serializer2Version match {
       case "2" =>
         new SparkSqlSerializer2V2(keySchema, valueSchema)
@@ -61,7 +63,6 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         new SparkSqlSerializer2(keySchema, valueSchema)
     }
   }
-
 
   override def execute() = attachTree(this , "execute") {
     newPartitioning match {
