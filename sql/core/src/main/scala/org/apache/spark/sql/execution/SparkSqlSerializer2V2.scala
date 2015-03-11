@@ -128,7 +128,48 @@ class Q31SerializationStream(out: OutputStream) extends BDBSerializationStream(o
   }
 }
 
+class Q31SerializationStream_alter(out: OutputStream) extends BDBSerializationStream(out) {
+  def writeObject[T: ClassTag](t: T): SerializationStream = {
+    val pair = t.asInstanceOf[(Row, Row)]
+    val key = pair._1
+    val value = pair._2
+
+    var tmp = key.getString(0)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+
+    tmp = value.getString(0)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+    tmp = value.getString(1)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeDouble(value.getDouble(2))
+
+    this
+  }
+}
+
 class Q32SerializationStream(out: OutputStream) extends BDBSerializationStream(out) {
+  def writeObject[T: ClassTag](t: T): SerializationStream = {
+    val pair = t.asInstanceOf[(Row, Row)]
+    val key = pair._1
+    val value = pair._2
+
+    var tmp = key.getString(0)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+
+    rowOut.writeInt(value.getInt(0))
+    tmp = value.getString(1)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+
+    this
+  }
+}
+
+class Q32SerializationStream_alter(out: OutputStream) extends BDBSerializationStream(out) {
   def writeObject[T: ClassTag](t: T): SerializationStream = {
     val pair = t.asInstanceOf[(Row, Row)]
     val key = pair._1
@@ -243,7 +284,58 @@ class Q31DeserializationStream(
   }
 }
 
+class Q31DeserializationStream_alter(
+    in: InputStream,
+    keySchema: Array[DataType],
+    valueSchema: Array[DataType]) extends BDBDeserializationStream(in) {
+
+  val key = new SpecificMutableRow(keySchema)
+  val value = new SpecificMutableRow(valueSchema)
+
+  def readObject[T: ClassTag](): T = {
+    var length = rowIn.readInt()
+    var bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    key.setString(0, new String(bytes, "utf-8"))
+
+    length = rowIn.readInt()
+    bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    value.setString(0, new String(bytes, "utf-8"))
+    length = rowIn.readInt()
+    bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    value.setString(1, new String(bytes, "utf-8"))
+    value.setDouble(2, rowIn.readDouble())
+
+    (key, value).asInstanceOf[T]
+  }
+}
+
 class Q32DeserializationStream(
+    in: InputStream,
+    keySchema: Array[DataType],
+    valueSchema: Array[DataType]) extends BDBDeserializationStream(in) {
+  val key = new SpecificMutableRow(keySchema)
+  val value = new SpecificMutableRow(valueSchema)
+
+  def readObject[T: ClassTag](): T = {
+    var length = rowIn.readInt()
+    var bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    key.setString(0, new String(bytes, "utf-8"))
+
+    value.setInt(0, rowIn.readInt())
+    length = rowIn.readInt()
+    bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    value.setString(1, new String(bytes, "utf-8"))
+
+    (key, value).asInstanceOf[T]
+  }
+}
+
+class Q32DeserializationStream_alter(
     in: InputStream,
     keySchema: Array[DataType],
     valueSchema: Array[DataType]) extends BDBDeserializationStream(in) {
@@ -322,8 +414,12 @@ object SparkSqlSerializer2V2 {
         new Q2SerializationStream(s)
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31SerializationStream(s)
-      case (Seq(StringType), Seq(StringType, IntegerType)) =>
+      case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
+        new Q31SerializationStream_alter(s)
+      case (Seq(StringType), Seq(IntegerType, StringType)) =>
         new Q32SerializationStream(s)
+      case (Seq(StringType), Seq(StringType, IntegerType)) =>
+        new Q32SerializationStream_alter(s)
       case (Seq(StringType), Seq(StringType, LongType, LongType, DoubleType)) =>
         new Q33SerializationStream(s)
       case (Seq(StringType, DoubleType, DoubleType), null) =>
@@ -343,8 +439,12 @@ object SparkSqlSerializer2V2 {
         new Q2DeserializationStream(s, keySchema, valueSchema)
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31DeserializationStream(s, keySchema, valueSchema)
-      case (Seq(StringType), Seq(StringType, IntegerType)) =>
+      case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
+        new Q31DeserializationStream_alter(s, keySchema, valueSchema)
+      case (Seq(StringType), Seq(IntegerType, StringType)) =>
         new Q32DeserializationStream(s, keySchema, valueSchema)
+      case (Seq(StringType), Seq(StringType, IntegerType)) =>
+        new Q32DeserializationStream_alter(s, keySchema, valueSchema)
       case (Seq(StringType), Seq(StringType, LongType, LongType, DoubleType)) =>
         new Q33DeserializationStream(s, keySchema, valueSchema)
       case (Seq(StringType, DoubleType, DoubleType), null) =>
