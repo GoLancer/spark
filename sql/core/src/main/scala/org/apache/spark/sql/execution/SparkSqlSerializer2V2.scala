@@ -202,12 +202,12 @@ class Q2DeserializationStream(
   def readObject[T: ClassTag](): T = {
     var length = rowIn.readInt()
     var bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     key.setString(0, new String(bytes, "utf-8"))
 
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     value.setString(0, new String(bytes, "utf-8"))
     value.setDouble(1, rowIn.readDouble())
 
@@ -226,16 +226,16 @@ class Q31DeserializationStream(
   def readObject[T: ClassTag](): T = {
     var length = rowIn.readInt()
     var bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     key.setString(0, new String(bytes, "utf-8"))
 
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     value.setString(0, new String(bytes, "utf-8"))
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     value.setString(1, new String(bytes, "utf-8"))
     value.setDouble(2, rowIn.readDouble())
 
@@ -253,12 +253,12 @@ class Q32DeserializationStream(
   def readObject[T: ClassTag](): T = {
     var length = rowIn.readInt()
     var bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     key.setString(0, new String(bytes, "utf-8"))
 
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     value.setString(0, new String(bytes, "utf-8"))
     value.setInt(1, rowIn.readInt())
 
@@ -277,12 +277,12 @@ class Q33DeserializationStream(
   def readObject[T: ClassTag](): T = {
     var length = rowIn.readInt()
     var bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     key.setString(0, new String(bytes, "utf-8"))
 
     length = rowIn.readInt()
     bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     value.setString(0, new String(bytes, "utf-8"))
     value.setLong(1, rowIn.readLong())
     value.setLong(2, rowIn.readLong())
@@ -302,7 +302,7 @@ class Q34DeserializationStream(
   def readObject[T: ClassTag](): T = {
     val length = rowIn.readInt()
     val bytes = new Array[Byte](length)
-    rowIn.read(bytes)
+    rowIn.readFully(bytes)
     key.setString(0, new String(bytes, "utf-8"))
     key.setDouble(1, rowIn.readDouble())
     key.setDouble(2, rowIn.readDouble())
@@ -338,7 +338,8 @@ object SparkSqlSerializer2V2 {
         new Q33SerializationStream(s)
       case (Seq(StringType, DoubleType, DoubleType), null) =>
         new Q34SerializationStream(s)
-      case _ => sys.error("Check the schema " + keySchema.toSeq + " " + valueSchema.toSeq)
+      case _ => sys.error("key or value schema is not supported. keySchema is " +
+        keySchema.toSeq + " and valueSchema is" + valueSchema.toSeq)
     }
   }
 
@@ -368,7 +369,8 @@ object SparkSqlSerializer2V2 {
         new Q33DeserializationStream(s, keySchema, valueSchema)
       case (Seq(StringType, DoubleType, DoubleType), null) =>
         new Q34DeserializationStream(s, keySchema, valueSchema)
-      case _ => sys.error("Check the schema " + keySchema.toSeq + " " + valueSchema.toSeq)
+      case _ => sys.error("key or value schema is not supported. keySchema is " +
+        keySchema.toSeq + " and valueSchema is" + valueSchema.toSeq)
     }
   }
 }

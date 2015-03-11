@@ -39,17 +39,10 @@ class SparkSqlSerializer2SerializationStream(
 
   val rowOut = new DataOutputStream(out)
 
-  var first = true
-
   def writeObject[T: ClassTag](t: T): SerializationStream = {
     val pair = t.asInstanceOf[(Row, Row)]
     val key = pair._1
     val value = pair._2
-
-    if (first) {
-      logInfo("key: " + key + " value: " + value)
-      first = false
-    }
 
     if (keySchema != null) { writeRow(key, keySchema) }
     if (valueSchema != null) { writeRow(value, valueSchema) }
@@ -63,8 +56,6 @@ class SparkSqlSerializer2SerializationStream(
       schema(i) match {
         case StringType =>
           val value = row.getString(i)
-          if (value.length > 12) sys.error(s"$value's length is larger than 12.")
-
           rowOut.writeInt(value.length)
           rowOut.write(value.getBytes("utf-8"))
         case IntegerType =>
@@ -101,16 +92,9 @@ class SparkSqlSerializer2DeserializationStream(
   val key = new SpecificMutableRow(keySchema)
   val value = if (valueSchema != null) new SpecificMutableRow(valueSchema) else null
 
-  var first = true
-
   def readObject[T: ClassTag](): T = {
     if (keySchema != null) { readRow(key, keySchema) }
     if (valueSchema != null) { readRow(value, valueSchema) }
-
-    if (first) {
-      logInfo("key: " + key + " value: " + value)
-      first = false
-    }
 
     (key, value).asInstanceOf[T]
   }
@@ -121,9 +105,8 @@ class SparkSqlSerializer2DeserializationStream(
       schema(i) match {
         case StringType =>
           val length = rowIn.readInt()
-          if (length > 12) sys.error(s"The string's length is larger than 12.")
           val bytes = new Array[Byte](length)
-          rowIn.read(bytes)
+          rowIn.readFully(bytes)
           row.setString(i, new String(bytes, "utf-8"))
         case IntegerType =>
           row.setInt(i, rowIn.readInt())
