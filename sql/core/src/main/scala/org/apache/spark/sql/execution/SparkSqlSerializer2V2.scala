@@ -209,6 +209,27 @@ class Q33SerializationStream(out: OutputStream) extends BDBSerializationStream(o
   }
 }
 
+class Q33SerializationStream_alter(out: OutputStream) extends BDBSerializationStream(out) {
+  def writeObject[T: ClassTag](t: T): SerializationStream = {
+    val pair = t.asInstanceOf[(Row, Row)]
+    val key = pair._1
+    val value = pair._2
+
+    var tmp = key.getString(0)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+
+    tmp = value.getString(0)
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeDouble(value.getDouble(1))
+    rowOut.writeLong(value.getLong(2))
+    rowOut.writeLong(value.getLong(3))
+
+    this
+  }
+}
+
 class Q34SerializationStream(out: OutputStream) extends BDBSerializationStream(out) {
   def writeObject[T: ClassTag](t: T): SerializationStream = {
     val pair = t.asInstanceOf[(Row, Row)]
@@ -378,7 +399,33 @@ class Q33DeserializationStream(
     value.setString(0, new String(bytes, "utf-8"))
     value.setLong(1, rowIn.readLong())
     value.setLong(2, rowIn.readLong())
+    value.setDouble(3, rowIn.readDouble())
+
+    (key, value).asInstanceOf[T]
+  }
+}
+
+class Q33DeserializationStream_alter(
+    in: InputStream,
+    keySchema: Array[DataType],
+    valueSchema: Array[DataType]) extends BDBDeserializationStream(in) {
+
+  val key = new SpecificMutableRow(keySchema)
+  val value = new SpecificMutableRow(valueSchema)
+
+  def readObject[T: ClassTag](): T = {
+    var length = rowIn.readInt()
+    var bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    key.setString(0, new String(bytes, "utf-8"))
+
+    length = rowIn.readInt()
+    bytes = new Array[Byte](length)
+    rowIn.readFully(bytes)
+    value.setString(0, new String(bytes, "utf-8"))
     value.setDouble(1, rowIn.readDouble())
+    value.setLong(2, rowIn.readLong())
+    value.setLong(3, rowIn.readLong())
 
     (key, value).asInstanceOf[T]
   }
@@ -412,18 +459,28 @@ object SparkSqlSerializer2V2 {
     (keySchema.toSeq, valueSchema.toSeq) match {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2SerializationStream(s)
+
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31SerializationStream(s)
+
       case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
         new Q31SerializationStream_alter(s)
+
       case (Seq(StringType), Seq(IntegerType, StringType)) =>
         new Q32SerializationStream(s)
+
       case (Seq(StringType), Seq(StringType, IntegerType)) =>
         new Q32SerializationStream_alter(s)
+
       case (Seq(StringType), Seq(StringType, LongType, LongType, DoubleType)) =>
         new Q33SerializationStream(s)
+
+      case (Seq(StringType), Seq(StringType, DoubleType, LongType, LongType)) =>
+        new Q33SerializationStream_alter(s)
+
       case (Seq(StringType, DoubleType, DoubleType), null) =>
         new Q34SerializationStream(s)
+
       case _ => sys.error("key or value schema is not supported. keySchema is " +
         keySchema.toSeq + " and valueSchema is" + valueSchema.toSeq)
     }
@@ -437,18 +494,28 @@ object SparkSqlSerializer2V2 {
     (keySchema.toSeq, valueSchema.toSeq) match {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2DeserializationStream(s, keySchema, valueSchema)
+
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31DeserializationStream(s, keySchema, valueSchema)
+
       case (Seq(StringType), Seq(StringType, StringType, DoubleType)) =>
         new Q31DeserializationStream_alter(s, keySchema, valueSchema)
+
       case (Seq(StringType), Seq(IntegerType, StringType)) =>
         new Q32DeserializationStream(s, keySchema, valueSchema)
+
       case (Seq(StringType), Seq(StringType, IntegerType)) =>
         new Q32DeserializationStream_alter(s, keySchema, valueSchema)
+
       case (Seq(StringType), Seq(StringType, LongType, LongType, DoubleType)) =>
         new Q33DeserializationStream(s, keySchema, valueSchema)
+
+      case (Seq(StringType), Seq(StringType, DoubleType, LongType, LongType)) =>
+        new Q33DeserializationStream_alter(s, keySchema, valueSchema)
+
       case (Seq(StringType, DoubleType, DoubleType), null) =>
         new Q34DeserializationStream(s, keySchema, valueSchema)
+
       case _ => sys.error("key or value schema is not supported. keySchema is " +
         keySchema.toSeq + " and valueSchema is" + valueSchema.toSeq)
     }
