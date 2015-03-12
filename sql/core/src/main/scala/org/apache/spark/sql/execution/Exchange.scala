@@ -18,7 +18,9 @@
 package org.apache.spark.sql.execution
 
 import org.apache.spark.annotation.DeveloperApi
+import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.sort.SortShuffleManager
+import org.apache.spark.sql.types.DataType
 import org.apache.spark.{SparkEnv, HashPartitioner, RangePartitioner, SparkConf}
 import org.apache.spark.rdd.ShuffledRDD
 import org.apache.spark.sql.{SQLContext, Row}
@@ -46,6 +48,23 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
 
   private val useSqlSerializer2 = child.sqlContext.conf.useSqlSerializer2
 
+  def serializer2(keySchema: Array[DataType], valueSchema: Array[DataType]): Serializer = {
+    logInfo(
+      s"SQLSerializer2 is enabled with version ${child.sqlContext.conf.serializer2Version}." +
+      s"keySchema is ${keySchema.toSeq} and valueSchema is " +
+      s"${if (valueSchema == null) null else valueSchema.toSeq}")
+    child.sqlContext.conf.serializer2Version match {
+      case "2" =>
+        new SparkSqlSerializer2V2(keySchema, valueSchema)
+
+      case "3" =>
+        new SparkSqlSerializer2V3(keySchema, valueSchema)
+
+      case _ =>
+        new SparkSqlSerializer2(keySchema, valueSchema)
+    }
+  }
+
   override def execute() = attachTree(this , "execute") {
     newPartitioning match {
       case HashPartitioning(expressions, numPartitions) =>
@@ -72,7 +91,7 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         val part = new HashPartitioner(numPartitions)
         val shuffled = new ShuffledRDD[Row, Row, Row](rdd, part)
         val serializer = if (useSqlSerializer2) {
-          new SparkSqlSerializer2(
+          serializer2(
             expressions.map(_.dataType).toArray,
             child.output.map(_.dataType).toArray)
         } else {
@@ -96,7 +115,7 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
         implicit val ordering = new RowOrdering(sortingExpressions, child.output)
 
         val serializer = if (useSqlSerializer2) {
-          new SparkSqlSerializer2(child.output.map(_.dataType).toArray, null)
+          serializer2(child.output.map(_.dataType).toArray, null)
         } else {
           new SparkSqlSerializer(new SparkConf(false))
         }

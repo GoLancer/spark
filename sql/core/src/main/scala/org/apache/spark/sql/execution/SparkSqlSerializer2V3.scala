@@ -20,31 +20,38 @@ package org.apache.spark.sql.execution
 import java.io._
 import java.nio.ByteBuffer
 
-import scala.reflect.ClassTag
-
-import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
 import org.apache.spark.Logging
-
+import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.SpecificMutableRow
 import org.apache.spark.sql.types._
+import org.apache.spark.util.MutablePair
+
+import scala.reflect.ClassTag
 
 /**
  * A serializer stream for rows with only primitive types.
  */
-class SparkSqlSerializer2SerializationStream(
+class SparkSqlSerializer2V3SerializationStream(
     keySchema: Array[DataType],
     valueSchema: Array[DataType],
-    out: OutputStream) extends SerializationStream with Logging {
+    out: OutputStream) extends SerializationStream with Logging{
 
   val rowOut = new DataOutputStream(out)
 
+  var first = true
+
   def writeObject[T: ClassTag](t: T): SerializationStream = {
-    val pair = t.asInstanceOf[(Row, Row)]
+    val pair = t.asInstanceOf[MutablePair[Row, Row]]
     val key = pair._1
     val value = pair._2
 
-    if (keySchema != null) { writeRow(key, keySchema) }
+    if (first) {
+      logInfo("key: " + key + " value: " + value)
+      first = false
+    }
+
+      if (keySchema != null) { writeRow(key, keySchema) }
     if (valueSchema != null) { writeRow(value, valueSchema) }
 
     this
@@ -81,11 +88,11 @@ class SparkSqlSerializer2SerializationStream(
 /**
  * A deserializer stream for rows with only primitive types.
  */
-class SparkSqlSerializer2DeserializationStream(
+class SparkSqlSerializer2V3DeserializationStream(
     keySchema: Array[DataType],
     valueSchema: Array[DataType],
     in: InputStream)
-  extends DeserializationStream with Logging  {
+  extends DeserializationStream with Logging {
 
   val rowIn = new DataInputStream(new BufferedInputStream(in))
 
@@ -127,7 +134,7 @@ class SparkSqlSerializer2DeserializationStream(
 /**
  * A serializer for rows with only primitive types.
  */
-class SparkSqlSerializer2Instance(
+class SparkSqlSerializer2V3Instance(
     keySchema: Array[DataType],
     valueSchema: Array[DataType])
   extends SerializerInstance {
@@ -139,11 +146,11 @@ class SparkSqlSerializer2Instance(
   def deserialize[T: ClassTag](bytes: ByteBuffer, loader: ClassLoader): T = ???
 
   def serializeStream(s: OutputStream): SerializationStream = {
-    new SparkSqlSerializer2SerializationStream(keySchema, valueSchema, s)
+    new SparkSqlSerializer2V3SerializationStream(keySchema, valueSchema, s)
   }
 
   def deserializeStream(s: InputStream): DeserializationStream = {
-    new SparkSqlSerializer2DeserializationStream(keySchema, valueSchema, s)
+    new SparkSqlSerializer2V3DeserializationStream(keySchema, valueSchema, s)
   }
 }
 
@@ -151,10 +158,10 @@ class SparkSqlSerializer2Instance(
  * A serializer only used by [[Exchange]] and it only deals with Rows containing simple types
  * (i.e. StringType, LongType, DoubleType, IntegerType).
  */
-private[sql] class SparkSqlSerializer2(keySchema: Array[DataType], valueSchema: Array[DataType])
+private[sql] class SparkSqlSerializer2V3(keySchema: Array[DataType], valueSchema: Array[DataType])
   extends org.apache.spark.serializer.Serializer
   with Logging
   with Serializable{
 
-  def newInstance(): SerializerInstance = new SparkSqlSerializer2Instance(keySchema, valueSchema)
+  def newInstance(): SerializerInstance = new SparkSqlSerializer2V3Instance(keySchema, valueSchema)
 }
