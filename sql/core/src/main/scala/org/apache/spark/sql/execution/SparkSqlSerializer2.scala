@@ -55,9 +55,7 @@ class SparkSqlSerializer2SerializationStream(
     while (i < schema.length) {
       schema(i) match {
         case StringType =>
-          val value = row.getString(i)
-          rowOut.writeInt(value.length)
-          rowOut.write(value.getBytes("utf-8"))
+          rowOut.writeUTF(row.getString(i))
         case IntegerType =>
           rowOut.writeInt(row.getInt(i))
         case LongType =>
@@ -104,10 +102,7 @@ class SparkSqlSerializer2DeserializationStream(
     while (i < schema.length) {
       schema(i) match {
         case StringType =>
-          val length = rowIn.readInt()
-          val bytes = new Array[Byte](length)
-          rowIn.readFully(bytes)
-          row.setString(i, new String(bytes, "utf-8"))
+          row.setString(i, rowIn.readUTF())
         case IntegerType =>
           row.setInt(i, rowIn.readInt())
         case LongType =>

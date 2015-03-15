@@ -93,13 +93,9 @@ class Q2SerializationStream(out: OutputStream) extends BDBSerializationStream(ou
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
     rowOut.writeDouble(value.getDouble(1))
 
     this
@@ -112,17 +108,11 @@ class Q31SerializationStream(out: OutputStream) extends BDBSerializationStream(o
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
     rowOut.writeDouble(value.getDouble(1))
-    tmp = value.getString(2)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(2))
 
     this
   }
@@ -134,16 +124,10 @@ class Q31SerializationStream_alter(out: OutputStream) extends BDBSerializationSt
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
-    tmp = value.getString(1)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
+    rowOut.writeUTF(value.getString(1))
     rowOut.writeDouble(value.getDouble(2))
 
     this
@@ -156,14 +140,10 @@ class Q32SerializationStream(out: OutputStream) extends BDBSerializationStream(o
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
     rowOut.writeInt(value.getInt(0))
-    tmp = value.getString(1)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(1))
 
     this
   }
@@ -175,13 +155,9 @@ class Q32SerializationStream_alter(out: OutputStream) extends BDBSerializationSt
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
     rowOut.writeInt(value.getInt(1))
 
     this
@@ -194,13 +170,9 @@ class Q33SerializationStream(out: OutputStream) extends BDBSerializationStream(o
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
     rowOut.writeLong(value.getLong(1))
     rowOut.writeLong(value.getLong(2))
     rowOut.writeDouble(value.getDouble(3))
@@ -215,13 +187,9 @@ class Q33SerializationStream_alter(out: OutputStream) extends BDBSerializationSt
     val key = pair._1
     val value = pair._2
 
-    var tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
 
-    tmp = value.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(value.getString(0))
     rowOut.writeDouble(value.getDouble(1))
     rowOut.writeLong(value.getLong(2))
     rowOut.writeLong(value.getLong(3))
@@ -235,9 +203,7 @@ class Q34SerializationStream(out: OutputStream) extends BDBSerializationStream(o
     val pair = t.asInstanceOf[(Row, Row)]
     val key = pair._1
 
-    val tmp = key.getString(0)
-    rowOut.writeInt(tmp.length)
-    rowOut.write(tmp.getBytes("utf-8"))
+    rowOut.writeUTF(key.getString(0))
     rowOut.writeDouble(key.getDouble(1))
     rowOut.writeDouble(key.getDouble(2))
 
@@ -262,15 +228,9 @@ class Q2DeserializationStream(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
     value.setDouble(1, rowIn.readDouble())
 
     (key, value).asInstanceOf[T]
@@ -286,20 +246,11 @@ class Q31DeserializationStream(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
     value.setDouble(1, rowIn.readDouble())
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(2, new String(bytes, "utf-8"))
+    value.setString(2, rowIn.readUTF())
 
     (key, value).asInstanceOf[T]
   }
@@ -314,19 +265,10 @@ class Q31DeserializationStream_alter(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(1, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
+    value.setString(1, rowIn.readUTF())
     value.setDouble(2, rowIn.readDouble())
 
     (key, value).asInstanceOf[T]
@@ -341,16 +283,10 @@ class Q32DeserializationStream(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
     value.setInt(0, rowIn.readInt())
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(1, new String(bytes, "utf-8"))
+    value.setString(1, rowIn.readUTF())
 
     (key, value).asInstanceOf[T]
   }
@@ -364,15 +300,9 @@ class Q32DeserializationStream_alter(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
     value.setInt(1, rowIn.readInt())
 
     (key, value).asInstanceOf[T]
@@ -388,15 +318,9 @@ class Q33DeserializationStream(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
     value.setLong(1, rowIn.readLong())
     value.setLong(2, rowIn.readLong())
     value.setDouble(3, rowIn.readDouble())
@@ -414,15 +338,9 @@ class Q33DeserializationStream_alter(
   val value = new SpecificMutableRow(valueSchema)
 
   def readObject[T: ClassTag](): T = {
-    var length = rowIn.readInt()
-    var bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
 
-    length = rowIn.readInt()
-    bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    value.setString(0, new String(bytes, "utf-8"))
+    value.setString(0, rowIn.readUTF())
     value.setDouble(1, rowIn.readDouble())
     value.setLong(2, rowIn.readLong())
     value.setLong(3, rowIn.readLong())
@@ -439,10 +357,7 @@ class Q34DeserializationStream(
   val key = new SpecificMutableRow(keySchema)
 
   def readObject[T: ClassTag](): T = {
-    val length = rowIn.readInt()
-    val bytes = new Array[Byte](length)
-    rowIn.readFully(bytes)
-    key.setString(0, new String(bytes, "utf-8"))
+    key.setString(0, rowIn.readUTF())
     key.setDouble(1, rowIn.readDouble())
     key.setDouble(2, rowIn.readDouble())
 
