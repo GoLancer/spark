@@ -251,16 +251,16 @@ case class GeneratedAggregate(
         val resultProjection = resultProjectionBuilder()
         Iterator(resultProjection(buffer))
       } else {
-        val buffers = new java.util.HashMap[Row, MutableRow]()
+        val buffers = new org.apache.spark.util.collection.AppendOnlyMap[Row, MutableRow]()
 
         var currentRow: Row = null
         while (iter.hasNext) {
           currentRow = iter.next()
           val currentGroup = groupProjection(currentRow)
-          var currentBuffer = buffers.get(currentGroup)
+          var currentBuffer = buffers(currentGroup)
           if (currentBuffer == null) {
             currentBuffer = newAggregationBuffer(EmptyRow).asInstanceOf[MutableRow]
-            buffers.put(currentGroup, currentBuffer)
+            buffers(currentGroup) = currentBuffer
           }
           // Target the projection at the current aggregation buffer and then project the updated
           // values.
@@ -268,14 +268,14 @@ case class GeneratedAggregate(
         }
 
         new Iterator[Row] {
-          private[this] val resultIterator = buffers.entrySet.iterator()
+          private[this] val resultIterator = buffers.iterator
           private[this] val resultProjection = resultProjectionBuilder()
 
           def hasNext = resultIterator.hasNext
 
           def next() = {
             val currentGroup = resultIterator.next()
-            resultProjection(joinedRow(currentGroup.getKey, currentGroup.getValue))
+            resultProjection(joinedRow(currentGroup._1, currentGroup._2))
           }
         }
       }
