@@ -44,7 +44,8 @@ class SparkSqlSerializer2V2Instance(
   def deserialize[T: ClassTag](bytes: ByteBuffer, loader: ClassLoader): T = ???
 
   def serializeStream(s: OutputStream): SerializationStream = {
-    val serializationStream = SparkSqlSerializer2V2.serializeStream(s, keySchema, valueSchema)
+    val serializationStream =
+      SparkSqlSerializer2V2.serializeStream(s, keySchema, valueSchema)
 
     logInfo(
       "SparkSqlSerializer2V2Instance's serializeStream is " +
@@ -54,7 +55,8 @@ class SparkSqlSerializer2V2Instance(
   }
 
   def deserializeStream(s: InputStream): DeserializationStream = {
-    val deserializationStream =  SparkSqlSerializer2V2.deserializeStream(s, keySchema, valueSchema)
+    val deserializationStream =
+      SparkSqlSerializer2V2.deserializeStream(s, keySchema, valueSchema)
 
     logInfo(
       "SparkSqlSerializer2V2Instance's serializeStream is " +
@@ -68,12 +70,15 @@ class SparkSqlSerializer2V2Instance(
  * A serializer only used by [[Exchange]] and it only deals with Rows containing simple types
  * (i.e. StringType, LongType, DoubleType, IntegerType).
  */
-private[sql] class SparkSqlSerializer2V2(keySchema: Array[DataType], valueSchema: Array[DataType])
+private[sql] class SparkSqlSerializer2V2(
+    keySchema: Array[DataType],
+    valueSchema: Array[DataType])
   extends org.apache.spark.serializer.Serializer
   with Logging
   with Serializable{
 
-  def newInstance(): SerializerInstance = new SparkSqlSerializer2V2Instance(keySchema, valueSchema)
+  def newInstance(): SerializerInstance =
+    new SparkSqlSerializer2V2Instance(keySchema, valueSchema)
 }
 
 abstract class BDBSerializationStream(out: OutputStream) extends SerializationStream {
@@ -96,6 +101,25 @@ class Q2SerializationStream(out: OutputStream) extends BDBSerializationStream(ou
     rowOut.writeUTF(key.getString(0))
 
     rowOut.writeUTF(value.getString(0))
+    rowOut.writeDouble(value.getDouble(1))
+
+    this
+  }
+}
+
+class Q2SerializationStream_binary(out: OutputStream) extends BDBSerializationStream(out) {
+  def writeObject[T: ClassTag](t: T): SerializationStream = {
+    val pair = t.asInstanceOf[(Row, Row)]
+    val key = pair._1
+    val value = pair._2
+
+    var tmp = key.get(0).asInstanceOf[Array[Byte]]
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp)
+
+    tmp = value.get(0).asInstanceOf[Array[Byte]]
+    rowOut.writeInt(tmp.length)
+    rowOut.write(tmp)
     rowOut.writeDouble(value.getDouble(1))
 
     this
@@ -231,6 +255,28 @@ class Q2DeserializationStream(
     key.setString(0, rowIn.readUTF())
 
     value.setString(0, rowIn.readUTF())
+    value.setDouble(1, rowIn.readDouble())
+
+    (key, value).asInstanceOf[T]
+  }
+}
+
+class Q2DeserializationStream_binary(
+   in: InputStream,
+   keySchema: Array[DataType],
+   valueSchema: Array[DataType]) extends BDBDeserializationStream(in) {
+
+  val key = new SpecificMutableRow(keySchema)
+  val value = new SpecificMutableRow(valueSchema)
+
+  def readObject[T: ClassTag](): T = {
+    val keyBytes = new Array[Byte](rowIn.readInt())
+    rowIn.readFully(keyBytes)
+    key.update(0, keyBytes)
+
+    val valueBytes = new Array[Byte](rowIn.readInt())
+    rowIn.readFully(valueBytes)
+    value.update(0, valueBytes)
     value.setDouble(1, rowIn.readDouble())
 
     (key, value).asInstanceOf[T]
@@ -375,6 +421,9 @@ object SparkSqlSerializer2V2 {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2SerializationStream(s)
 
+      case (Seq(BinaryType), Seq(BinaryType, DoubleType)) =>
+        new Q2SerializationStream_binary(s)
+
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31SerializationStream(s)
 
@@ -409,6 +458,9 @@ object SparkSqlSerializer2V2 {
     (keySchema.toSeq, valueSchema.toSeq) match {
       case (Seq(StringType), Seq(StringType, DoubleType)) =>
         new Q2DeserializationStream(s, keySchema, valueSchema)
+
+      case (Seq(BinaryType), Seq(BinaryType, DoubleType)) =>
+        new Q2DeserializationStream_binary(s, keySchema, valueSchema)
 
       case (Seq(StringType), Seq(StringType, DoubleType, StringType)) =>
         new Q31DeserializationStream(s, keySchema, valueSchema)

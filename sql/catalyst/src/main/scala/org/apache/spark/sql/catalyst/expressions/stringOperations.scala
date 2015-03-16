@@ -209,12 +209,13 @@ case class EndsWith(left: Expression, right: Expression)
  * Defined for String and Binary types.
  */
 case class Substring(str: Expression, pos: Expression, len: Expression) extends Expression {
-  
+
   type EvaluatedType = Any
 
   override def foldable = str.foldable && pos.foldable && len.foldable
 
   def nullable: Boolean = str.nullable || pos.nullable || len.nullable
+
   def dataType: DataType = {
     if (!resolved) {
       throw new UnresolvedException(this, s"Cannot resolve since $children are not resolved")
@@ -223,10 +224,10 @@ case class Substring(str: Expression, pos: Expression, len: Expression) extends 
   }
 
   override def children = str :: pos :: len :: Nil
-
+  /*
   @inline
   def slice[T, C <: Any](str: C, startPos: Int, sliceLen: Int)
-      (implicit ev: (C=>IndexedSeqOptimized[T,_])): Any = {
+                        (implicit ev: (C => IndexedSeqOptimized[T, _])): Any = {
     val len = str.length
     // Hive and SQL use one-based indexing for SUBSTR arguments but also accept zero and
     // negative indices for start positions. If a start index i is greater than 0, it 
@@ -245,7 +246,42 @@ case class Substring(str: Expression, pos: Expression, len: Expression) extends 
       case x => start + x
     }
 
-    str.slice(start, end)    
+    str.slice(start, end)
+  }
+  */
+
+  @inline
+  def sliceArray(str: Array[Byte], startPos: Int, sliceLen: Int): Array[Byte] = {
+    val len = str.length
+    val start = startPos match {
+      case pos if pos > 0 => math.min(pos - 1, len)
+      case neg if neg < 0 => math.min(len + neg, len)
+      case _ => 0
+    }
+
+    val end = sliceLen match {
+      case max if max == Integer.MAX_VALUE => math.min(max, len)
+      case x => math.min(start + sliceLen, len)
+    }
+
+    java.util.Arrays.copyOfRange(str, start, end)
+  }
+
+  @inline
+  def sliceString(str: String, startPos: Int, sliceLen: Int): String = {
+    val len = str.length
+    val start = startPos match {
+      case pos if pos > 0 => math.min(pos - 1, len)
+      case neg if neg < 0 => math.min(len + neg, len)
+      case _ => 0
+    }
+
+    val end = sliceLen match {
+      case max if max == Integer.MAX_VALUE => math.min(max, len)
+      case x => math.min(start + sliceLen, len)
+    }
+
+    str.substring(start, end)
   }
 
   override def eval(input: Row): Any = {
@@ -261,8 +297,8 @@ case class Substring(str: Expression, pos: Expression, len: Expression) extends 
       val length = ln.asInstanceOf[Int] 
 
       string match {
-        case ba: Array[Byte] => slice(ba, start, length)
-        case other => slice(other.toString, start, length)
+        case ba: Array[Byte] => sliceArray(ba, start, length)
+        case other => sliceString(other.toString, start, length)
       }
     }
   }

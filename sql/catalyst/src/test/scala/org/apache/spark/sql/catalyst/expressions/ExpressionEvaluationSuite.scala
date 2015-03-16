@@ -32,6 +32,12 @@ import org.apache.spark.sql.types._
 
 class ExpressionEvaluationSuite extends FunSuite {
 
+  test("equalTo") {
+    checkEvaluation(
+      EqualTo(Literal("123".getBytes("utf-8")), Literal("123".getBytes("utf-8"))),
+      true)
+  }
+
   test("literals") {
     checkEvaluation(Literal(1), 1)
     checkEvaluation(Literal(true), true)

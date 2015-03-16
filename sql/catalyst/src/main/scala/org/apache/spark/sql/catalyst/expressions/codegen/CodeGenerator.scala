@@ -275,8 +275,13 @@ abstract class CodeGenerator[InType <: AnyRef, OutType <: AnyRef] extends Loggin
               ${eval.primitiveTerm}.toString
         """.children
 
-      case EqualTo(e1, e2) =>
+      case EqualTo(e1, e2) if !(e1.dataType == BinaryType && e2.dataType == BinaryType) =>
         (e1, e2).evaluateAs (BooleanType) { case (eval1, eval2) => q"$eval1 == $eval2" }
+
+      case EqualTo(e1, e2) if (e1.dataType == BinaryType && e2.dataType == BinaryType) =>
+        (e1, e2).evaluateAs (BooleanType) { case (eval1, eval2) =>
+          q"java.util.Arrays.equals($eval1, $eval2)"
+        }
 
       /* TODO: Fix null semantics.
       case In(e1, list) if !list.exists(!_.isInstanceOf[expressions.Literal]) =>

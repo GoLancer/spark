@@ -152,6 +152,7 @@ object GenerateProjection extends CodeGenerator[Seq[Expression], Projection] {
         case FloatType => q"java.lang.Float.floatToIntBits($elementName)"
         case DoubleType =>
           q"{ val b = java.lang.Double.doubleToLongBits($elementName); (b ^ (b >>>32)).toInt }"
+        case BinaryType => q"java.util.Arrays.hashCode($elementName)"
         case _ => q"$elementName.hashCode"
       }
       q"if (isNullAt($i)) 0 else $nonNull"
@@ -170,7 +171,13 @@ object GenerateProjection extends CodeGenerator[Seq[Expression], Projection] {
 
     val columnChecks = (0 until expressions.size).map { i =>
       val elementName = newTermName(s"c$i")
-      q"if (this.$elementName != specificType.$elementName) return false"
+      if (expressions(i).dataType == BinaryType) {
+        q"""
+            if (!java.util.Arrays.equals(this.$elementName, specificType.$elementName)) return false
+         """
+      } else {
+        q"if (this.$elementName != specificType.$elementName) return false"
+      }
     }
 
     val equalsFunction =
