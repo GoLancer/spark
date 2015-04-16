@@ -19,6 +19,7 @@ package org.apache.spark.sql.columnar
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.sql.catalyst.plans.physical.Partitioning
 import org.apache.spark.{Accumulable, Accumulator, Accumulators}
 import org.apache.spark.sql.catalyst.expressions
 
@@ -205,6 +206,12 @@ private[sql] case class InMemoryColumnarTableScan(
   extends LeafNode {
 
   override def output: Seq[Attribute] = attributes
+
+  // The cached version does not change the outputPartitioning of the original SparkPlan.
+  override def outputPartitioning: Partitioning = relation.child.outputPartitioning
+
+  // The cached version does not change the outputOrdering of the original SparkPlan.
+  override def outputOrdering: Seq[SortOrder] = relation.child.outputOrdering
 
   private def statsFor(a: Attribute) = relation.partitionStatistics.forAttribute(a)
 

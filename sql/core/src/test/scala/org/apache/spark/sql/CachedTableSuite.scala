@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql
 
+import org.apache.spark.sql.execution.Exchange
+
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 
@@ -314,5 +316,24 @@ class CachedTableSuite extends QueryTest {
     uncacheTable("t2")
 
     assert(accsSize >= Accumulators.originals.size)
+  }
+
+  test("A cached table preserves the outputPartitioning of its cached SparkPlan") {
+    val df = table("testData").unionAll(table("testData")).unionAll(table("testData"))
+    df.registerTempTable("testData3x")
+    sql("SELECT key, value FROM testData3x ORDER BY key").registerTempTable("t1")
+    cacheTable("t1")
+    assertCached(table("t1"))
+    sql("SELECT key, count(*) FROM t1 GROUP BY key").queryExecution.executedPlan.foreach {
+      case exchange: Exchange =>
+        fail("Exchange is not needed since rows of the cached table " +
+          "has already been partitioned by key")
+      case _ =>
+    }
+    checkAnswer(
+      sql("SELECT key, count(*) FROM t1 GROUP BY key ORDER BY key"),
+      sql("SELECT key, count(*) FROM testData3x GROUP BY key ORDER BY key").collect())
+    uncacheTable("t1")
+    dropTempTable("testData3x")
   }
 }
